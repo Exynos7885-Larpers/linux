@@ -98,8 +98,23 @@ enum s6sy761_regulators {
 	S6SY761_REGULATOR_AVDD,
 };
 
+/**
+ * struct s6sy761_chip_info - differences between the supported controllers
+ * @first_tid: touch ID the controller reports for the first finger
+ * @has_boot_status: the boot status register is implemented
+ * @reset_cmd: command that restarts the controller after power up, if needed
+ * @reset_cmd_len: length of @reset_cmd
+ */
+struct s6sy761_chip_info {
+	u8 first_tid;
+	bool has_boot_status;
+	const u8 *reset_cmd;
+	size_t reset_cmd_len;
+};
+
 struct s6sy761_data {
 	struct i2c_client *client;
+	const struct s6sy761_chip_info *info;
 	struct regulator_bulk_data regulators[2];
 	struct input_dev *input;
 	struct touchscreen_properties prop;
@@ -108,6 +123,23 @@ struct s6sy761_data {
 
 	u16 devid;
 	u8 tx_channel;
+};
+
+/*
+ * The FTS1BA90A only reports "boot complete" after it has been restarted, so
+ * it is reset explicitly in case it was already running when power was applied.
+ */
+static const u8 fts1ba90a_reset_cmd[] = { 0xfa, 0x20, 0x00, 0x00, 0x24, 0x81 };
+
+static const struct s6sy761_chip_info s6sy761_info = {
+	.first_tid = 1,
+	.has_boot_status = true,
+};
+
+static const struct s6sy761_chip_info fts1ba90a_info = {
+	.first_tid = 0,
+	.reset_cmd = fts1ba90a_reset_cmd,
+	.reset_cmd_len = sizeof(fts1ba90a_reset_cmd),
 };
 
 /*
@@ -174,10 +206,11 @@ static void s6sy761_handle_coordinates(struct s6sy761_data *sdata, u8 *event)
 	u8 tid;
 	u8 touch_state;
 
-	if (unlikely(!(event[0] & S6SY761_MASK_TID)))
+	tid = (event[0] & S6SY761_MASK_TID) >> 2;
+	if (unlikely(tid < sdata->info->first_tid))
 		return;
 
-	tid = ((event[0] & S6SY761_MASK_TID) >> 2) - 1;
+	tid -= sdata->info->first_tid;
 	touch_state = (event[0] & S6SY761_MASK_TOUCH_STATE) >> 6;
 
 	switch (touch_state) {
@@ -299,6 +332,17 @@ static int s6sy761_power_on(struct s6sy761_data *sdata)
 	if (ret)
 		return ret;
 
+	if (sdata->info->reset_cmd) {
+		msleep(20);
+
+		ret = i2c_master_send(sdata->client, sdata->info->reset_cmd,
+				      sdata->info->reset_cmd_len);
+		if (ret < 0)
+			return ret;
+		if (ret != sdata->info->reset_cmd_len)
+			return -EIO;
+	}
+
 	msleep(140);
 
 	/* double check whether the touch is functional */
@@ -317,13 +361,16 @@ static int s6sy761_power_on(struct s6sy761_data *sdata)
 		return -ENODEV;
 	}
 
-	ret = i2c_smbus_read_byte_data(sdata->client, S6SY761_BOOT_STATUS);
-	if (ret < 0)
-		return ret;
+	if (sdata->info->has_boot_status) {
+		ret = i2c_smbus_read_byte_data(sdata->client,
+					       S6SY761_BOOT_STATUS);
+		if (ret < 0)
+			return ret;
 
-	/* for some reasons the device might be stuck in the bootloader */
-	if (ret != S6SY761_BS_APPLICATION)
-		return -ENODEV;
+		/* for some reasons the device might be stuck in the bootloader */
+		if (ret != S6SY761_BS_APPLICATION)
+			return -ENODEV;
+	}
 
 	/* enable touch functionality */
 	ret = i2c_smbus_write_word_data(sdata->client,
@@ -400,6 +447,10 @@ static int s6sy761_probe(struct i2c_client *client)
 	sdata = devm_kzalloc(&client->dev, sizeof(*sdata), GFP_KERNEL);
 	if (!sdata)
 		return -ENOMEM;
+
+	sdata->info = i2c_get_match_data(client);
+	if (!sdata->info)
+		return -EINVAL;
 
 	i2c_set_clientdata(client, sdata);
 	sdata->client = client;
@@ -523,14 +574,16 @@ static const struct dev_pm_ops s6sy761_pm_ops = {
 
 #ifdef CONFIG_OF
 static const struct of_device_id s6sy761_of_match[] = {
-	{ .compatible = "samsung,s6sy761", },
+	{ .compatible = "samsung,s6sy761", .data = &s6sy761_info },
+	{ .compatible = "st,fts1ba90a", .data = &fts1ba90a_info },
 	{ },
 };
 MODULE_DEVICE_TABLE(of, s6sy761_of_match);
 #endif
 
 static const struct i2c_device_id s6sy761_id[] = {
-	{ .name = "s6sy761" },
+	{ .name = "s6sy761", .driver_data = (kernel_ulong_t)&s6sy761_info },
+	{ .name = "fts1ba90a", .driver_data = (kernel_ulong_t)&fts1ba90a_info },
 	{ }
 };
 MODULE_DEVICE_TABLE(i2c, s6sy761_id);

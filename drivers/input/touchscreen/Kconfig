@@ -531,7 +531,8 @@ config TOUCHSCREEN_S6SY761
 	tristate "Samsung S6SY761 Touchscreen driver"
 	depends on I2C
 	help
-	  Say Y if you have the Samsung S6SY761 driver
+	  Say Y if you have a Samsung S6SY761 or an STMicroelectronics
+	  FTS1BA90A touchscreen controller.
 
 	  If unsure, say N
 
