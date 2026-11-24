@@ -81,6 +81,26 @@
 		regulator-name = "dummy_reg";
 	};
 
+	reg_tsp_avdd: regulator-tsp-avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_avdd";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpios = <&gpg3 2 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
+	reg_tsp_dvdd: regulator-tsp-dvdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tsp_dvdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		gpios = <&gpg3 3 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-boot-on;
+	};
+
 	reserved-memory {
 		ranges;
 		#address-cells = <2>;
@@ -104,6 +124,26 @@
 		pinctrl-0 = <&fuel_irq>;
 		pinctrl-names = "default";
 		monitored-battery = <&battery>;
+	};
+};
+
+&i2c_4 {
+	samsung,i2c-max-bus-freq = <400000>;
+	samsung,i2c-sda-delay = <100>;
+
+	status = "okay";
+
+	touchscreen@49 {
+		compatible = "st,fts1ba90a";
+		reg = <0x49>;
+		interrupt-parent = <&gpa0>;
+		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-0 = <&touch_irq>;
+		pinctrl-names = "default";
+		vdd-supply = <&reg_tsp_dvdd>;
+		avdd-supply = <&reg_tsp_avdd>;
+		touchscreen-size-x = <1200>;
+		touchscreen-size-y = <1920>;
 	};
 };
 
@@ -157,6 +197,13 @@
 	key_volup: key-volup-pins {
 		samsung,pins = "gpa1-5";
 		samsung,pin-function = <EXYNOS_PIN_FUNC_F>;
+		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
+		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
+	};
+
+	touch_irq: touch-irq-pins {
+		samsung,pins = "gpa0-0";
+		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
 		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
 		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
 	};
