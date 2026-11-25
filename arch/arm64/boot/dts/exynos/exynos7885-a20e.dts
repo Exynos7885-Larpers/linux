@@ -80,6 +80,24 @@
 	};
 };
 
+&i2c_4 {
+	samsung,i2c-max-bus-freq = <400000>;
+	samsung,i2c-sda-delay = <100>;
+
+	status = "okay";
+
+	touchscreen@48 {
+		compatible = "himax,hx83102d";
+		reg = <0x48>;
+		pinctrl-0 = <&touch_irq>;
+		pinctrl-names = "default";
+		interrupt-parent = <&gpa0>;
+		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
+		touchscreen-size-x = <720>;
+		touchscreen-size-y = <1560>;
+	};
+};
+
 &mmc_0 {
 	bus-width = <8>;
 	cap-mmc-highspeed;
@@ -122,6 +140,13 @@
 
 	key_volup: key-volup-pins {
 		samsung,pins = "gpa1-5";
+		samsung,pin-function = <EXYNOS_PIN_FUNC_F>;
+		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
+		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
+	};
+
+	touch_irq: touch-irq-pins {
+		samsung,pins = "gpa0-0";
 		samsung,pin-function = <EXYNOS_PIN_FUNC_F>;
 		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
 		samsung,pin-drv = <EXYNOS5420_PIN_DRV_LV1>;
