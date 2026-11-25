@@ -132,6 +132,14 @@ static int himax_bus_read(struct himax_ts_data *ts, u32 address, void *dst,
 
 static void himax_reset(struct himax_ts_data *ts)
 {
+	/*
+	 * Some versions of himax touchscreen chips do not contain a reset
+	 * GPIO. The downstream driver only resets these chips for firmware
+	 * updates (which aren't implemented in this driver)
+	 */
+	if (!ts->gpiod_rst)
+		return;
+
 	gpiod_set_value_cansleep(ts->gpiod_rst, 1);
 
 	/* Delay copied from downstream driver */
@@ -349,7 +357,7 @@ static int himax_probe(struct i2c_client *client)
 		return error;
 	}
 
-	ts->gpiod_rst = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
+	ts->gpiod_rst = devm_gpiod_get_optional(dev, "reset", GPIOD_OUT_HIGH);
 	error = PTR_ERR_OR_ZERO(ts->gpiod_rst);
 	if (error) {
 		dev_err(dev, "Failed to get reset GPIO: %d\n", error);
